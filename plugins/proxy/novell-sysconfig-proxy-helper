@@ -1,0 +1,19 @@
+#!/bin/sh
+
+if [ ! -f /etc/sysconfig/proxy ]
+then
+	exit 0
+fi
+
+source /etc/sysconfig/proxy
+
+# This may look convoluted, but it's an easy way to let random shell
+# script code appear in /etc/sysconfig/proxy and still let user code
+# read the variables in it easily.
+
+echo "PROXY_ENABLED $PROXY_ENABLED"
+echo "HTTP_PROXY $HTTP_PROXY"
+echo "HTTPS_PROXY $HTTPS_PROXY"
+echo "FTP_PROXY $FTP_PROXY"
+echo "GOPHER_PROXY $GOPHER_PROXY"
+echo "NO_PROXY $NO_PROXY"

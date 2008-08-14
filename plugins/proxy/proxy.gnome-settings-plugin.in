@@ -1,0 +1,8 @@
+[GNOME Settings Plugin]
+Module=proxy
+IAge=0
+_Name=Network Proxy
+_Description=Network proxy plugin
+Authors=Rodrigo Moya <rodrigo@gnome-db.org>
+Copyright=
+Website=
