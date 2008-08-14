@@ -12,6 +12,7 @@ SUBDIRS =		\
 	keyboard	\
 	media-keys	\
 	mouse		\
+	proxy		\
 	screensaver	\
 	sound		\
 	typing-break	\
