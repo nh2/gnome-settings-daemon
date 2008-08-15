@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<gconfschemafile>
+    <schemalist>
+        <schema>
+	    <key>/schemas/system/proxy/use_system_settings</key>
+	    <applyto>/system/proxy/use_system_settings</applyto>
+	    <type>string</type>
+	    <default>only_if_mode_not_set</default>
+	    <locale name="C">
+	        <short>Use the system's proxy settings</short>
+		<long>Whether to use the system's proxy settings.
+		Possible values are "only_if_mode_not_set", "system_values", and
+		"user_values".  The first one is the default value; in
+		it, the system's proxy settings will be used if and
+		only if the user has never set his /system/proxy/mode
+		key.  Once the user sets that key, use_system_settings
+		will switch to "system_values", which indicates that
+		the system's proxy settings should be used, or
+		"user_values", which indicates that the user's
+		settings should be used.  The key will alternate
+		between these last two values in the future and will
+		not go back to the default value.</long>
+	    </locale>
+	</schema>
+  </schemalist>
+</gconfschemafile>
