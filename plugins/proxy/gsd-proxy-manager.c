@@ -216,24 +216,179 @@ copy_proxy_disabled (GConfClient *config_client)
 	gconf_client_set_string (config_client, KEY_MODE, "none", NULL);
 }
 
+
+
+/* The following two functions (the main one being gedit_utils_decode_uri) are
+ * stolen from gedit/gedit/gedit-utils.c.  This is because GIO doesn't yet
+ * export a function to parse URIs, sigh.
+ */
+
+static void
+null_ptr (gchar **ptr)
+{
+        if (ptr)
+                *ptr = NULL;
+}
+
+/**
+* gedit_utils_decode_uri:
+* @uri: the uri to decode
+* @scheme: return value pointer for the uri's scheme (e.g. http, sftp, ...)
+* @user: return value pointer for the uri user info
+* @port: return value pointer for the uri port
+* @host: return value pointer for the uri host
+* @path: return value pointer for the uri path
+*
+* Parse and break an uri apart in its individual components like the uri
+* scheme, user info, port, host and path. The return value pointer can be
+* NULL to ignore certain parts of the uri. If the function returns TRUE, then
+* all return value pointers should be freed using g_free
+*
+* Return value: TRUE if the uri could be properly decoded, FALSE otherwise.
+*/
+static gboolean
+gedit_utils_decode_uri (const gchar *uri,
+                        gchar **scheme,
+                        gchar **user,
+                        gchar **host,
+                        gchar **port,
+                        gchar **path)
+{
+	/* Largely copied from glib/gio/gdummyfile.c:_g_decode_uri. This
+         * functionality should be in glib/gio, but for now we implement it
+         * ourselves (see bug #546182) */
+
+        const char *p, *in, *hier_part_start, *hier_part_end;
+        char *out;
+        char c;
+
+	/* From RFC 3986 Decodes:
+         * URI = scheme ":" hier-part [ "?" query ] [ "#" fragment ]
+         */
+
+        p = uri;
+
+        null_ptr (scheme);
+        null_ptr (user);
+        null_ptr (port);
+        null_ptr (host);
+        null_ptr (path);
+
+	/* Decode scheme:
+         * scheme = ALPHA *( ALPHA / DIGIT / "+" / "-" / "." )
+         */
+
+        if (!g_ascii_isalpha (*p))
+                return FALSE;
+
+        while (1) {
+                c = *p++;
+
+                if (c == ':')
+                        break;
+
+                if (!(g_ascii_isalnum(c) ||
+                      c == '+' ||
+                      c == '-' ||
+                      c == '.'))
+                        return FALSE;
+        }
+
+        if (scheme) {
+                *scheme = g_malloc (p - uri);
+                out = *scheme;
+
+                for (in = uri; in < p - 1; in++)
+                        *out++ = g_ascii_tolower (*in);
+
+                *out = '\0';
+        }
+
+        hier_part_start = p;
+        hier_part_end = p + strlen (p);
+
+        if (hier_part_start[0] == '/' && hier_part_start[1] == '/') {
+                const char *authority_start, *authority_end;
+                const char *userinfo_start, *userinfo_end;
+                const char *host_start, *host_end;
+                const char *port_start;
+
+                authority_start = hier_part_start + 2;
+		/* authority is always followed by / or nothing */
+                authority_end = memchr (authority_start, '/', hier_part_end - authority_start);
+
+                if (authority_end == NULL)
+                        authority_end = hier_part_end;
+
+		/* 3.2:
+                 * authority = [ userinfo "@" ] host [ ":" port ]
+                 */
+
+                userinfo_end = memchr (authority_start, '@', authority_end - authority_start);
+
+                if (userinfo_end) {
+                        userinfo_start = authority_start;
+
+                        if (user)
+                                *user = g_uri_unescape_segment (userinfo_start, userinfo_end, NULL);
+
+                        if (user && *user == NULL) {
+                                if (scheme)
+                                        g_free (*scheme);
+
+                                return FALSE;
+                        }
+
+                        host_start = userinfo_end + 1;
+                } else
+                        host_start = authority_start;
+
+                port_start = memchr (host_start, ':', authority_end - host_start);
+
+                if (port_start) {
+                        host_end = port_start++;
+
+                        if (port)
+                                *port = g_strndup (port_start, authority_end - port_start);
+                } else
+                        host_end = authority_end;
+
+                if (host)
+                        *host = g_strndup (host_start, host_end - host_start);
+
+                hier_part_start = authority_end;
+        }
+
+        if (path)
+                *path = g_uri_unescape_segment (hier_part_start, hier_part_end, "/");
+
+        return TRUE;
+}
+
+
+
 /* parses a URI to get the host and port */
 static gboolean
 parse_uri (const gchar *uri, gchar **host, guint *port)
 {
-        char **tokens;
-        
-        tokens = g_strsplit_set (uri, ":", 0);
-        if (tokens[1] != NULL) {
-                *host = g_strdup (tokens[1] + 2);
-        }
-        
-        if (tokens[2] != NULL) {
-                *port = (guint) atoi (tokens[2]);
-        }
-        
+        gchar *port_str;
+
+        if (!gedit_utils_decode_uri (uri,
+                                     NULL,     /* scheme */
+                                     NULL,     /* user */
+                                     host,     /* host */
+                                     &port_str, /* port */
+                                     NULL))    /* path */
+                return FALSE;
+
+        if (port_str) {
+                *port = atoi (port_str);
+                g_free (port_str);
+        } else
+                *port = 0;
+
         g_debug ("Proxy host: %s:%d", *host, *port);
-        
-        g_strfreev (tokens);
+
         return TRUE;
 }
 
