@@ -71,6 +71,11 @@
 
 struct GsdProxyManagerPrivate
 {
+        /* This is to avoid "sizeof (GsdProxyManagerPrivate) == 0" when adding
+         * the private struct with g_type_class_add_private().  Feel free to
+         * remove this dummy field if you add real fields here.
+         */
+        int dummy;
 };
 
 typedef struct {
