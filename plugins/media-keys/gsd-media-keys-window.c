@@ -921,6 +921,9 @@ gsd_media_keys_window_init (GsdMediaKeysWindow *window)
 
         screen = gtk_widget_get_screen (GTK_WIDGET (window));
 
+        /* Set this class for Moblin to understand to raise above UX Shell */
+        gtk_window_set_wmclass (window, "gsd-window-class", "hardware-osd");
+
         window->priv->is_composited = gdk_screen_is_composited (screen);
 
         if (window->priv->is_composited) {
