@@ -65,6 +65,8 @@
 #define KEY_TOUCHPAD_DISABLE_W_TYPING    GCONF_TOUCHPAD_DIR "/disable_while_typing"
 #ifdef HAVE_X11_EXTENSIONS_XINPUT_H
 #define KEY_TAP_TO_CLICK        GCONF_TOUCHPAD_DIR "/tap_to_click"
+#define KEY_TAP_RIGHT_CLICK     GCONF_TOUCHPAD_DIR "/tap_right_click"
+#define KEY_TAP_MIDDLE_CLICK    GCONF_TOUCHPAD_DIR "/tap_middle_click"
 #define KEY_SCROLL_METHOD       GCONF_TOUCHPAD_DIR "/scroll_method"
 #define KEY_PAD_HORIZ_SCROLL    GCONF_TOUCHPAD_DIR "/horiz_scroll_enabled"
 #define KEY_TOUCHPAD_ENABLED    GCONF_TOUCHPAD_DIR "/touchpad_enabled"
@@ -637,6 +639,100 @@ set_tap_to_click (gboolean state, gboolean left_handed)
 }
 
 static int
+set_tap_right_click (gboolean state)
+{
+        int numdevices, i, format, rc;
+        unsigned long nitems, bytes_after;
+        XDeviceInfo *devicelist = XListInputDevices (GDK_DISPLAY (), &numdevices);
+        XDevice * device;
+        unsigned char* data;
+        Atom prop, type;
+
+        if (devicelist == NULL)
+                return 0;
+
+        prop = XInternAtom (GDK_DISPLAY (), "Synaptics Tap Action", False);
+
+        if (!prop)
+                return 0;
+
+        for (i = 0; i < numdevices; i++) {
+                if ((device = device_is_touchpad (devicelist[i]))) {
+                        gdk_error_trap_push ();
+                        rc = XGetDeviceProperty (GDK_DISPLAY (), device, prop, 0, 2,
+                                                False, XA_INTEGER, &type, &format, &nitems,
+                                                &bytes_after, &data);
+
+                        if (rc == Success && type == XA_INTEGER && format == 8 && nitems >= 7)
+                        {
+                                /* Set mapping for right bottom tap to right-click */
+                                data[1] = (state) ? 3 : 0;
+                                XChangeDeviceProperty (GDK_DISPLAY (), device, prop, XA_INTEGER, 8,
+                                                        PropModeReplace, data, nitems);
+                        }
+
+                        if (rc == Success)
+                                XFree (data);
+                        XCloseDevice (GDK_DISPLAY (), device);
+                        if (gdk_error_trap_pop ()) {
+                                g_warning ("Error in setting tap to right-click on \"%s\"", devicelist[i].name);
+                                continue;
+                        }
+                }
+        }
+
+        XFreeDeviceList (devicelist);
+        return 0;
+}
+
+static int
+set_tap_middle_click (gboolean state)
+{
+        int numdevices, i, format, rc;
+        unsigned long nitems, bytes_after;
+        XDeviceInfo *devicelist = XListInputDevices (GDK_DISPLAY (), &numdevices);
+        XDevice * device;
+        unsigned char* data;
+        Atom prop, type;
+
+        if (devicelist == NULL)
+                return 0;
+
+        prop = XInternAtom (GDK_DISPLAY (), "Synaptics Tap Action", False);
+
+        if (!prop)
+                return 0;
+
+        for (i = 0; i < numdevices; i++) {
+                if ((device = device_is_touchpad (devicelist[i]))) {
+                        gdk_error_trap_push ();
+                        rc = XGetDeviceProperty (GDK_DISPLAY (), device, prop, 0, 2,
+                                                False, XA_INTEGER, &type, &format, &nitems,
+                                                &bytes_after, &data);
+
+                        if (rc == Success && type == XA_INTEGER && format == 8 && nitems >= 7)
+                        {
+                                /* Set mapping for right top tap to middle-click */
+                                data[0] = (state) ? 2 : 0;
+                                XChangeDeviceProperty (GDK_DISPLAY (), device, prop, XA_INTEGER, 8,
+                                                        PropModeReplace, data, nitems);
+                        }
+
+                        if (rc == Success)
+                                XFree (data);
+                        XCloseDevice (GDK_DISPLAY (), device);
+                        if (gdk_error_trap_pop ()) {
+                                g_warning ("Error in setting tap to middle-click on \"%s\"", devicelist[i].name);
+                                continue;
+                        }
+                }
+        }
+
+        XFreeDeviceList (devicelist);
+        return 0;
+}
+
+static int
 set_horiz_scroll (gboolean state)
 {
         int numdevices, i, rc;
@@ -908,6 +1004,8 @@ set_mouse_settings (GsdMouseManager *manager)
         set_disable_w_typing (manager, gconf_client_get_bool (client, KEY_TOUCHPAD_DISABLE_W_TYPING, NULL));
 #ifdef HAVE_X11_EXTENSIONS_XINPUT_H
         set_tap_to_click (gconf_client_get_bool (client, KEY_TAP_TO_CLICK, NULL), left_handed);
+        set_tap_right_click (gconf_client_get_bool (client, KEY_TAP_RIGHT_CLICK, NULL));
+        set_tap_middle_click (gconf_client_get_bool (client, KEY_TAP_MIDDLE_CLICK, NULL));
         set_edge_scroll (gconf_client_get_int (client, KEY_SCROLL_METHOD, NULL));
         set_horiz_scroll (gconf_client_get_bool (client, KEY_PAD_HORIZ_SCROLL, NULL));
         set_touchpad_enabled (gconf_client_get_bool (client, KEY_TOUCHPAD_ENABLED, NULL));
@@ -943,6 +1041,12 @@ mouse_callback (GConfClient        *client,
                         set_tap_to_click (gconf_value_get_bool (entry->value),
                                           gconf_client_get_bool (client, KEY_LEFT_HANDED, NULL));
                 }
+        } else if (! strcmp (entry->key, KEY_TAP_RIGHT_CLICK)) {
+                if (entry->value->type == GCONF_VALUE_BOOL)
+                        set_tap_right_click (gconf_value_get_bool (entry->value));
+        } else if (! strcmp (entry->key, KEY_TAP_MIDDLE_CLICK)) {
+                if (entry->value->type == GCONF_VALUE_BOOL)
+                        set_tap_middle_click (gconf_value_get_bool (entry->value));
         } else if (! strcmp (entry->key, KEY_SCROLL_METHOD)) {
                 if (entry->value->type == GCONF_VALUE_INT) {
                         set_edge_scroll (gconf_value_get_int (entry->value));
@@ -1032,6 +1136,8 @@ gsd_mouse_manager_idle_cb (GsdMouseManager *manager)
 #ifdef HAVE_X11_EXTENSIONS_XINPUT_H
         set_tap_to_click (gconf_client_get_bool (client, KEY_TAP_TO_CLICK, NULL),
                           gconf_client_get_bool (client, KEY_LEFT_HANDED, NULL));
+        set_tap_right_click (gconf_client_get_bool (client, KEY_TAP_RIGHT_CLICK, NULL));
+        set_tap_middle_click (gconf_client_get_bool (client, KEY_TAP_MIDDLE_CLICK, NULL));
         set_edge_scroll (gconf_client_get_int (client, KEY_SCROLL_METHOD, NULL));
         set_horiz_scroll (gconf_client_get_bool (client, KEY_PAD_HORIZ_SCROLL, NULL));
         set_touchpad_enabled (gconf_client_get_bool (client, KEY_TOUCHPAD_ENABLED, NULL));
